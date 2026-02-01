@@ -1,0 +1,44 @@
+[
+  {
+    "image_name": "groceries.jpg",
+    "width": 800,
+    "height": 534,
+    "detections": []
+  },
+  {
+    "image_name": "image_244.jpg",
+    "width": 270,
+    "height": 423,
+    "detections": [
+      {
+        "label": "person",
+        "score": 0.3708357512950897,
+        "bbox": [
+          149,
+          179,
+          173,
+          224
+        ],
+        "mask_rle": {
+          "size": [
+            1,
+            423
+          ],
+          "counts": "W="
+        }
+      }
+    ]
+  },
+  {
+    "image_name": "test_image.jpg",
+    "width": 1280,
+    "height": 720,
+    "detections": []
+  },
+  {
+    "image_name": "truck.jpg",
+    "width": 1800,
+    "height": 1200,
+    "detections": []
+  }
+]

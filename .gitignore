@@ -1,0 +1,5 @@
+*.pt
+*.pth
+sam3_weights/
+.venv/
+__pycache__/
