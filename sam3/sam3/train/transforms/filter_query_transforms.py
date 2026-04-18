@@ -8,7 +8,7 @@ from collections import defaultdict
 from typing import List, Optional, Union
 
 import torch
-from sam3.train.data.sam3_image_dataset import Datapoint, FindQuery, Object
+from sam3.sam3.train.data.sam3_image_dataset import Datapoint, FindQuery, Object
 
 
 class FilterDataPointQueries:

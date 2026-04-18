@@ -526,13 +526,19 @@ def _create_sam3_transformer(has_presence_token: bool = True) -> TransformerWrap
 
 def _load_checkpoint(model, checkpoint_path):
     """Load model checkpoint from file."""
-    with g_pathmgr.open(checkpoint_path, "rb") as f:
-        ckpt = torch.load(f, map_location="cpu", weights_only=True)
+    if str(checkpoint_path).endswith(".safetensors"):
+        from safetensors.torch import load_file
+        ckpt = load_file(checkpoint_path, device="cpu")
+    else:
+        with g_pathmgr.open(checkpoint_path, "rb") as f:
+            ckpt = torch.load(f, map_location="cpu", weights_only=True)
     if "model" in ckpt and isinstance(ckpt["model"], dict):
         ckpt = ckpt["model"]
     sam3_image_ckpt = {
         k.replace("detector.", ""): v for k, v in ckpt.items() if "detector" in k
     }
+    if not sam3_image_ckpt:
+        sam3_image_ckpt = dict(ckpt)
     if model.inst_interactive_predictor is not None:
         sam3_image_ckpt.update(
             {

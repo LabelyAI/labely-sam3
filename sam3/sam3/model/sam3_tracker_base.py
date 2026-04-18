@@ -6,12 +6,12 @@ import logging
 
 import torch
 import torch.nn.functional as F
-from sam3.model.memory import SimpleMaskEncoder
-from sam3.model.sam3_tracker_utils import get_1d_sine_pe, select_closest_cond_frames
+from sam3.sam3.model.memory import SimpleMaskEncoder
+from sam3.sam3.model.sam3_tracker_utils import get_1d_sine_pe, select_closest_cond_frames
 from sam3.sam.mask_decoder import MaskDecoder, MLP
 from sam3.sam.prompt_encoder import PromptEncoder
 from sam3.sam.transformer import TwoWayTransformer
-from sam3.train.data.collator import BatchedDatapoint
+from sam3.sam3.train.data.collator import BatchedDatapoint
 
 try:
     from timm.layers import trunc_normal_
@@ -164,7 +164,7 @@ class Sam3TrackerBase(torch.nn.Module):
 
         t_diff_max = max_abs_pos - 1 if max_abs_pos is not None else 1
         pos_enc = (
-            torch.tensor(rel_pos_list).pin_memory().to(device=device, non_blocking=True)
+            torch.tensor(rel_pos_list).to(device=device)
             / t_diff_max
         )
         tpos_dim = self.hidden_dim
@@ -1138,7 +1138,7 @@ class Sam3TrackerBase(torch.nn.Module):
         # see https://github.com/pytorch/pytorch/blob/v2.5.1/torch/_dynamo/config.py#L42-L49
         torch._dynamo.config.cache_size_limit = 64
         torch._dynamo.config.accumulated_cache_size_limit = 2048
-        from sam3.perflib.compile import compile_wrapper
+        from sam3.sam3.perflib.compile import compile_wrapper
 
         logging.info("Compiling all components. First time may be very slow.")
 

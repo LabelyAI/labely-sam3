@@ -1,4 +1,7 @@
 import io
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from typing import Optional, Literal, Dict, Any, List
 
 import numpy as np
@@ -12,8 +15,9 @@ from fastapi.responses import JSONResponse
 app = FastAPI(title="Prompt Annotation Service")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-BPE_PATH = r"D:\LabelySAM\sam3\assets\bpe_simple_vocab_16e6.txt.gz"
-CKPT_PATH = r"D:\LabelySAM\sam3_weights\sam3.pt"
+_ROOT = os.path.join(os.path.dirname(__file__), "..")
+BPE_PATH = os.path.join(_ROOT, "sam3", "assets", "bpe_simple_vocab_16e6.txt.gz")
+CKPT_PATH = None  # will auto-download sam3.pt from facebook/sam3 on HuggingFace
 
 sam3 = None
 router = None
@@ -67,10 +71,11 @@ class Sam3Segmenter:
 
         self.model = build_sam3_image_model(
             bpe_path=bpe_path,
-            checkpoint_path=checkpoint_path
+            checkpoint_path=checkpoint_path,
+            load_from_HF=checkpoint_path is None,
         ).to(device).eval()
 
-        self.processor = Sam3Processor(self.model)
+        self.processor = Sam3Processor(self.model, device=device)
 
     @torch.inference_mode()
     def segment_from_prompt(self, pil_img: Image.Image, prompt: str, conf_thresh: float = 0.35):

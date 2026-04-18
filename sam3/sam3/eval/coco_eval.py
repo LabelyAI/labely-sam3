@@ -26,8 +26,8 @@ import torch
 from iopath.common.file_io import g_pathmgr
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
-from sam3.train.masks_ops import rle_encode
-from sam3.train.utils.distributed import (
+from sam3.sam3.train.masks_ops import rle_encode
+from sam3.sam3.train.utils.distributed import (
     all_gather,
     gather_to_rank_0_via_filesys,
     get_rank,
