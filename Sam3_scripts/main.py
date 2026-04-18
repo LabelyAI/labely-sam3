@@ -1,3 +1,4 @@
+import base64
 import io
 import sys
 import os
@@ -12,7 +13,18 @@ from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 
 
-app = FastAPI(title="Prompt Annotation Service")
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global sam3, router
+    print("🔄 Loading SAM3 model...")
+    sam3 = Sam3Segmenter(DEVICE, BPE_PATH, CKPT_PATH)
+    router = ModelRouter(sam3)
+    print("✅ SAM3 loaded")
+    yield
+
+app = FastAPI(title="Prompt Annotation Service", lifespan=lifespan)
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 _ROOT = os.path.join(os.path.dirname(__file__), "..")
@@ -57,8 +69,14 @@ def overlay_masks(image: Image.Image, masks, boxes, scores, label):
     return Image.fromarray(overlay)
 
 
+def resize_for_inference(img: Image.Image, max_side: int = 1024) -> Image.Image:
+    w, h = img.size
+    if max(w, h) <= max_side:
+        return img
+    scale = max_side / max(w, h)
+    return img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+
 def to_b64(img: Image.Image):
-    import base64
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return base64.b64encode(buf.getvalue()).decode()
@@ -113,16 +131,6 @@ class ModelRouter:
             return {"masks": masks, "boxes": boxes, "scores": scores}
         raise NotImplementedError(f"{mode} not implemented")
 
-# =====================================================
-# 5️⃣ Load Model at Startup
-# =====================================================
-@app.on_event("startup")
-def load_models():
-    global sam3, router
-    print("🔄 Loading SAM3 model...")
-    sam3 = Sam3Segmenter(DEVICE, BPE_PATH, CKPT_PATH)
-    router = ModelRouter(sam3)
-    print("✅ SAM3 loaded")
 
 # =====================================================
 # 6️⃣ API Endpoints
@@ -130,7 +138,6 @@ def load_models():
 @app.get("/health")
 def health():
     return {"status": "ok", "device": DEVICE}
-from typing import List
 
 @app.post("/annotate_batch")
 async def annotate_batch(
@@ -144,8 +151,73 @@ async def annotate_batch(
     batch_results = []
 
     for file in files:
+        try:
+            raw = await file.read()
+            pil_img = Image.open(io.BytesIO(raw)).convert("RGB")
+            pil_img = resize_for_inference(pil_img)
+
+            out = router.run(mode=mode, image=pil_img, prompt=prompt, conf_thresh=conf_thresh)
+
+            masks = out["masks"]
+            boxes = out["boxes"]
+            scores = out["scores"]
+
+            detections = []
+            processed_masks = []
+
+            for mask, box, score in zip(masks, boxes, scores):
+                if largest_component:
+                    mask = mask_to_largest_component(mask)
+
+                processed_masks.append(mask)
+
+                detections.append({
+                    "x1": int(box[0]),
+                    "y1": int(box[1]),
+                    "x2": int(box[2]),
+                    "y2": int(box[3]),
+                    "score": float(score)
+                })
+
+            overlay = overlay_masks(pil_img, processed_masks, boxes, scores, prompt)
+
+            response = {
+                "filename": file.filename,
+                "prompt": prompt,
+                "mode": mode,
+                "num_instances": len(detections),
+                "detections": detections,
+                "image_size": {"w": pil_img.width, "h": pil_img.height}
+            }
+
+            if return_images:
+                mask_union = np.zeros((pil_img.height, pil_img.width), dtype=bool)
+                for m in processed_masks:
+                    mask_union |= m
+                response["mask_png_b64"] = to_b64(Image.fromarray(mask_union.astype(np.uint8) * 255))
+                response["overlay_png_b64"] = to_b64(overlay)
+
+        except Exception as e:
+            response = {"filename": file.filename, "error": str(e)}
+
+        batch_results.append(response)
+
+    return {"results": batch_results}
+
+
+@app.post("/annotate")
+async def annotate(
+    file: UploadFile = File(...),
+    prompt: str = Form(...),
+    mode: Mode = Form("sam3"),
+    conf_thresh: float = Form(0.35),
+    largest_component: bool = Form(True),
+    return_images: bool = Form(True),
+):
+    try:
         raw = await file.read()
         pil_img = Image.open(io.BytesIO(raw)).convert("RGB")
+        pil_img = resize_for_inference(pil_img)
 
         out = router.run(mode=mode, image=pil_img, prompt=prompt, conf_thresh=conf_thresh)
 
@@ -173,7 +245,6 @@ async def annotate_batch(
         overlay = overlay_masks(pil_img, processed_masks, boxes, scores, prompt)
 
         response = {
-            "filename": file.filename,
             "prompt": prompt,
             "mode": mode,
             "num_instances": len(detections),
@@ -188,61 +259,7 @@ async def annotate_batch(
             response["mask_png_b64"] = to_b64(Image.fromarray(mask_union.astype(np.uint8) * 255))
             response["overlay_png_b64"] = to_b64(overlay)
 
-        batch_results.append(response)
+        return JSONResponse(response)
 
-    return {"results": batch_results}
-
-
-@app.post("/annotate")
-async def annotate(
-    file: UploadFile = File(...),
-    prompt: str = Form(...),
-    mode: Mode = Form("sam3"),
-    conf_thresh: float = Form(0.35),
-    largest_component: bool = Form(True),
-    return_images: bool = Form(True),
-):
-    raw = await file.read()
-    pil_img = Image.open(io.BytesIO(raw)).convert("RGB")
-
-    out = router.run(mode=mode, image=pil_img, prompt=prompt, conf_thresh=conf_thresh)
-
-    masks = out["masks"]
-    boxes = out["boxes"]
-    scores = out["scores"]
-
-    detections = []
-    processed_masks = []
-
-    for mask, box, score in zip(masks, boxes, scores):
-        if largest_component:
-            mask = mask_to_largest_component(mask)
-
-        processed_masks.append(mask)
-
-        detections.append({
-            "x1": int(box[0]),
-            "y1": int(box[1]),
-            "x2": int(box[2]),
-            "y2": int(box[3]),
-            "score": float(score)
-        })
-
-    overlay = overlay_masks(pil_img, processed_masks, boxes, scores, prompt)
-
-    response = {
-        "prompt": prompt,
-        "mode": mode,
-        "num_instances": len(detections),
-        "detections": detections,
-        "image_size": {"w": pil_img.width, "h": pil_img.height}
-    }
-
-    if return_images:
-        mask_union = np.zeros((pil_img.height, pil_img.width), dtype=bool)
-        for m in processed_masks:
-            mask_union |= m
-        response["mask_png_b64"] = to_b64(Image.fromarray(mask_union.astype(np.uint8) * 255))
-        response["overlay_png_b64"] = to_b64(overlay)
-
-    return JSONResponse(response)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)

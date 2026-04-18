@@ -45,3 +45,25 @@ Thumbs.db
 *.tmp
 runs/
 outputs/
+
+# Virtual environment
+.venv/
+
+# Model checkpoints in subdirectories
+BrandX/models/
+DefectX/models/
+MedX/models/
+**/models/*.pt
+**/models/*.pth
+
+# Generated outputs
+sam3_scripts/batch_results.json
+sam3/assets/*.gif
+
+# Frontend / Spring build artifacts
+labely-frontend/node_modules/
+labely-frontend/.next/
+labely-backend-spring/target/
+
+# Claude worktrees
+.claude/

@@ -2,6 +2,10 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/BrandX" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/MedX" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/labely-backend-spring" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/labely-frontend" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/sam3" vcs="Git" />
   </component>
 </project>
