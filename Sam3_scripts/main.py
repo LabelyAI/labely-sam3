@@ -29,7 +29,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 _ROOT = os.path.join(os.path.dirname(__file__), "..")
 BPE_PATH = os.path.join(_ROOT, "sam3", "assets", "bpe_simple_vocab_16e6.txt.gz")
-CKPT_PATH = None  # will auto-download sam3.pt from facebook/sam3 on HuggingFace
+CKPT_PATH = os.environ.get("CKPT_PATH", None)  # set via env var in Docker; None = auto-download from HuggingFace
 
 sam3 = None
 router = None
