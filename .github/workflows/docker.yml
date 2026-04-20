@@ -33,9 +33,9 @@ jobs:
 
       - name: Download SAM3 weights
         run: |
-          pip install huggingface_hub
+          pip install "huggingface_hub[cli]"
           mkdir -p weights
-          huggingface-cli download facebook/sam3 sam3.pt --local-dir ./weights --token ${{ secrets.HF_TOKEN }}
+          hf download facebook/sam3 sam3.pt --local-dir ./weights --token ${{ secrets.HF_TOKEN }}
 
       - name: Extract metadata
         id: meta
